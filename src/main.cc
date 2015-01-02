@@ -87,9 +87,12 @@ void initialize_commands();
 
 void do_nothing() {}
 void do_nothing_str(const std::string&) {}
+void set_string_ref_value(std::shared_ptr<std::string> string_ref, const std::string value) {
+  *string_ref = value;
+}
 
 int
-parse_options(Control* c, int argc, char** argv) {
+parse_options(Control* c, std::shared_ptr<std::string> rc_file_path, int argc, char** argv) {
   try {
     OptionParser optionParser;
 
@@ -99,6 +102,8 @@ parse_options(Control* c, int argc, char** argv) {
     optionParser.insert_flag('D', std::bind(&do_nothing_str, std::placeholders::_1));
     optionParser.insert_flag('I', std::bind(&do_nothing_str, std::placeholders::_1));
     optionParser.insert_flag('K', std::bind(&do_nothing_str, std::placeholders::_1));
+
+    optionParser.insert_option('c', std::bind(&set_string_ref_value, rc_file_path, std::placeholders::_1));
 
     optionParser.insert_option('b', std::bind(&rpc::call_command_set_string, "network.bind_address.set", std::placeholders::_1));
     optionParser.insert_option('d', std::bind(&rpc::call_command_set_string, "directory.default.set", std::placeholders::_1));
@@ -828,12 +833,13 @@ main(int argc, char** argv) {
     }
 #endif
 
-    int firstArg = parse_options(control, argc, argv);
+    std::shared_ptr<std::string> rc_file_path_ptr = std::shared_ptr<std::string>(new std::string("~/.rtorrent.rc"));
+    int firstArg = parse_options(control, rc_file_path_ptr, argc, argv);
 
     if (OptionParser::has_flag('n', argc, argv)) {
-      lt_log_print(torrent::LOG_WARN, "Ignoring ~/.rtorrent.rc.");
+      lt_log_print(torrent::LOG_WARN, "Ignoring rtorrent's rc file.");
     } else {
-      rpc::parse_command_single(rpc::make_target(), "try_import = ~/.rtorrent.rc");
+      rpc::parse_command_single(rpc::make_target(), "try_import = " + *rc_file_path_ptr);
     }
 
     control->initialize();
@@ -1004,7 +1010,8 @@ print_help() {
   std::cout << "Usage: rtorrent [OPTIONS]... [FILE]... [URL]..." << std::endl;
   std::cout << "  -D                Enable deprecated commands" << std::endl;
   std::cout << "  -h                Display this very helpful text" << std::endl;
-  std::cout << "  -n                Don't try to load ~/.rtorrent.rc on startup" << std::endl;
+  std::cout << "  -n                Don't try to load rtorrent's rc file on startup" << std::endl;
+  std::cout << "  -c path           Set rtorrent's rc file to path. Default is ~/.rtorrent.rc" << std::endl;
   std::cout << "  -b <a.b.c.d>      Bind the listening socket to this IP" << std::endl;
   std::cout << "  -i <a.b.c.d>      Change the IP that is sent to the tracker" << std::endl;
   std::cout << "  -p <int>-<int>    Set port range for incoming connections" << std::endl;
